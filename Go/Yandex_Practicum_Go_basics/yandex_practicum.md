@@ -3494,3 +3494,141 @@ C появлением в Go модулей все зависимости хра
 ### test
 Как правило, в каждом пакете есть один или несколько тестовых файлов `name_test.go`.
 Директорию `test` можно использовать для комплексного тестирования с привлечением дополнительных инструментов.
+
+### docs
+Директория `docs` предназначена для ведения документации по проекту.
+Это может быть документация для пользователей или дополнение к документации, которую автоматически генерирует `godoc`.
+
+
+## Прочие директории
+Вот ещё варианты директорий, которые встречаются в Go-проектах:
+- `api` — дополнительные файлы для сервисов с API.
+- `assets` — дополнительные файлы-ресурсы. Например, картинки.
+- `build` — файлы для упаковки и непрерывной интеграции.
+- `configs` — файлы конфигураций.
+- `deployments/deploy` — файлы конфигураций и шаблоны для сервисов, операционных систем и контейнеров.
+- `examples` — примеры использования приложений и библиотек.
+- `sсripts` — скрипты для установки, настройки и других действий с проектом.
+- `tools` — инструменты для поддержки проекта. Могут быть написаны на Go c использованием пакетов проекта.
+- `website` — директория с файлами для веб-сайта проекта.
+
+Это неполный список.
+Можно создавать директории с другими именами.
+Старайтесь давать такие имена, которые раскрывали бы назначение директории.
+
+
+## Задание с самопроверкой
+Создайте пакет для базовых математических вычислений со слайсами.
+В итоге проект будет содержать два пакета main и тот, который разработали вы.
+Расположение папок и структура проекта остаются на ваше усмотрение.
+
+Пакет должен реализовывать следующие математические операции:
+- `func SumSlice(s []int) int` возвращает сумму слайса.
+- `func MapSlice(s []int, op func ( int) int)` применяет функцию, переданную во втором аргументе к слайсу.
+- `func FoldSlice(s []int, op func ( int, int) int, init int) int` сворачивает слайс.
+
+То есть применяют операцию по цепочке сначала к `init` и `s[]`, потом результат и полученное значение — к следующему и так далее.
+Итоговый результат возвращается функцией, которая не должна изменять слайс.
+
+Импортируйте ваш проект в свою программу и протестируйте:
+```go
+package mathslice
+
+type Slice []Element
+
+type Element int
+
+// SumSlice — возвращает сумму элементов
+func SumSlice(slice Slice) (res Element) {
+    for _, s := range slice {
+        res += s
+    }
+    return
+}
+
+// MapSlice — применяет функцию op к каждому элементу
+func MapSlice(slice Slice, op func(Element) Element) {
+    for i, s := range slice {
+        slice[i] = op(s)
+    }
+}
+
+// FolвSlice — сворачивает слайс.
+func FoldSlice(slice Slice, op func(Element, Element) Element, init Element) (res Element) {
+    res = op(init, slice[0])
+    for i := 1; i < len(slice); i++ {
+        res = op(res, slice[i])
+    }
+    return
+}
+```
+
+```go
+package main
+
+import (
+    "exercise/mathslice"
+    "fmt"
+)
+
+func main() {
+
+    s := mathslice.Slice{1, 2, 3}
+    fmt.Println(s)
+    fmt.Println("Сумма слайса: ", mathslice.SumSlice(s))
+
+    mathslice.MapSlice(s, func(i mathslice.Element) mathslice.Element {
+        return i * 2
+    })
+
+    fmt.Println("Слайс, умноженный на два: ", s)
+
+    fmt.Println("Сумма слайса: ", mathslice.SumSlice(s))
+
+    fmt.Println("Свёртка слайса умножением ",
+        mathslice.FoldSlice(s,
+            func(x mathslice.Element, y mathslice.Element) mathslice.Element {
+                return x * y
+            },
+            1))
+
+    fmt.Println("Свёртка слайса сложением ",
+        mathslice.FoldSlice(s,
+            func(x mathslice.Element, y mathslice.Element) mathslice.Element {
+                return x + y
+            },
+            0))
+
+}
+```
+
+
+## Дополнительные материалы
+- [Style guideline for Go packages](https://rakyll.org/style-packages/)
+- [Practical Go: Real world advice for writing maintainable Go programs](https://dave.cheney.net/practical-go/presentations/qcon-china.html)
+- [Standard Go Project Layout](https://github.com/golang-standards/project-layout/blob/master/README_ru.md)
+
+
+## Примечание - вызов локального пакета
+[Мануал](https://go.dev/doc/tutorial/call-module-code)
+1. Представим, что у нас следующая структура каталогов (`greetings` будет вспомогательным модулем, который мы будем вызывать из модуля `hello`):
+    ```
+    <home>/
+     |-- greetings/
+     |-- hello/
+    ```
+2. Вызовем в директории `greetings` команду `go mod init example.com/greetings`
+3. Вызовем в директории `hello` команду `go mod init example.com/hello`
+4. Пропишем `import` в коде модуля `hello`
+5. Вызовем в директории `hello` команду `go mod edit -replace example.com/greetings=../greetings`
+6. Вызовем в директории `hello` команду `go mod tidy`
+7. Файл `go.mod` в директории `hello` должен получиться примерно следующим:
+```
+module example.com/hello
+
+go 1.16
+
+replace example.com/greetings => ../greetings
+
+require example.com/greetings v0.0.0-00010101000000-000000000000
+```
