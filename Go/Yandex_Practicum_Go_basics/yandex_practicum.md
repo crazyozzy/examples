@@ -5575,3 +5575,253 @@ func main() {
 ```
 
 Мы реализовали простой генератор случайных байт.
+
+
+### io.Writer
+```go
+type Writer interface {
+    Write(p []byte) (n int, err error)
+}
+```
+
+Этот интерфейс означает запись в любой возможный поток данных: сетевой сокет, файл или буфер.
+Определение интерфейса лежит в пакете [io](https://golang.org/pkg/io/#Writer).
+
+C этим интерфейсом ситуация, обратная `io.Reader`.
+Он позволяет записать переданный ему слайс байт куда-то.
+Куда именно — определяется реализацией.
+
+Для примера соберём большую строку из подстрок, вот только не через оператор `+=`, потому что тогда на каждую итерацию будет лишняя копия всей строки.
+В пакете [strings](https://golang.org/pkg/strings/#Reader) есть структура `strings.Builder` для сборки строки без избыточного копирования.
+Эта структура имеет метод `Write`, значит, она реализует интерфейс `io.Writer`:
+```go
+// создаём strings.Builder
+w := strings.Builder{}
+
+for i := 0; i < 50; i++ {
+    // функция fmt.Fprintf принимает аргументом io.Writer
+    // благодаря этому можно записывать форматированный вывод
+    fmt.Fprintf(&w, "%v", math.NaN())
+}
+
+w.Write([]byte("... BATMAN!"))
+
+// выводим собранную строку
+fmt.Printf("%s\n", &w)
+```
+
+Приведём пример реализации интерфейса `Write`.
+Предположим, что мы хотим посчитать хеш от некоторого массива байт или наборов массивов.
+Для простоты возьмём упрощённую функцию хеширования:
+```go
+package hashbyte
+
+import "io"
+
+type Hasher interface {
+    io.Writer // мы встроили интерфейс io.Writer в наш интерфейс, чтобы задать требование по наличию метода Write
+    Hash() byte
+}
+
+type hash struct {
+    result byte
+}
+
+func New(_init byte) Hasher {
+    return &hash{
+        result: _init,
+    }
+}
+
+// Write — сюда может быть записан массив байт любой длины, для которой будет подсчитываться хэш.
+func (h *hash) Write(bytes []byte) (n int, err error) {
+    // обновляем хеш для каждого байта, записанного в хешер
+    for _, b := range bytes {
+        h.result = (h.result^b)<<1 + b%2 
+    }
+    return len(bytes), nil
+}
+
+func (h hash) Hash() byte {
+    return h.result
+}
+```
+
+Теперь используем её в нашей программе:
+```go
+func main() {
+
+    // создаём генератор случайных чисел
+    generator := randbyte.New(time.Now().UnixNano()) // в качестве затравки передаём ему текущее время — при каждом запуске оно будет разным
+
+    buf := make([]byte, 16)
+
+    for i := 0; i < 5; i++ {
+        n, _ := generator.Read(buf)
+        fmt.Printf("Generate bytes: %v size(%d)\n", buf, n)
+    }
+
+    hasher := hashbyte.New(0)
+    hasher.Write(buf)
+    fmt.Printf("Hash: %v \n", hasher.Hash())
+}
+```
+
+
+## Функции-утилиты для io.Reader и io.Writer
+### io.Copy
+```go
+func Copy(dst Writer, src Reader) (written int64, err error)
+```
+
+Функция копирует все байты из `io.Reader` в `io.Writer`.
+
+Данные будут считываться до тех пор, пока функция `Read` не вернёт вторым аргументом ошибку.
+Если в качестве ошибки будет возвращено значение `io.EOF`, то выполнение функции закончится без ошибок.
+Также будет возвращено количество байт.
+
+**io.EOF** происходит от end of frame (конец файла) — исторически так назывался специальный символ, который означал конец файла.
+
+Приведём простой пример. Напишем функцию, копирующую содержимое одного файла в другой:
+```go
+func CopyFile(srcFileName, dstFileName string) error {
+    srcFile, err := os.Open(srcFileName)
+    if err != nil {
+        return err
+    }
+    dstFile, err := os.Create(dstFileName)
+    if err != nil {
+        return err
+    }
+    n, err := io.Copy(dstFile, srcFile)
+    if err != nil {
+        return err
+    }
+    fmt.Printf("Copied %d bytes from %s to %s", n, srcFileName, dstFileName)
+    return nil
+}
+```
+
+Структура типа `os.File` реализует интерфейсы `io.Reader` и `io.Writer`.
+
+Было бы просто считать весь исходный файл в память и затем скопировать его в новый.
+Но если исходный файл занимает сотни гигабайт?
+`io.Copy` работает умнее, считывая и записывая данные небольшими кусочками, поэтому для подобных операций рекомендуется использовать именно её.
+
+### io.CopyN
+```go
+func CopyN(dst Writer, src Reader, n int64) (written int64, err error)
+```
+
+Функция копирует все байты из `io.Reader` в `io.Writer`, но не более `n` байт.
+То же самое, что и `Copy`, но с ограничением — можно использовать с источниками данных, которые слишком большие или вообще бесконечные.
+Например, напишем функцию, которая будет сохранять данные из нашего генератора случайных чисел в файл.
+```go
+// Dump — сохраняет вычисленные данные в файл
+func (g generator) Dump(n int64, dst *os.File) error {
+    _, err := io.CopyN(g, dst, n)
+    return err
+}
+```
+
+Если бы мы использовали `Copy`, то программа продолжила бы работать до переполнения диска.
+
+### io.ReadAll
+```go
+func ReadAll(r Reader) ([]byte, error)
+```
+
+Функция считывает все байты из `io.Reader`.
+Чтение закончится, когда `io.Reader` вернёт `io.EOF`.
+
+### io.ReadAtLeast
+```go
+func ReadAtLeast(r Reader, buf []byte, min int) (n int, err error)
+```
+
+Функция считывает байты из `io.Reader` c ограничением: если прочитанных байт оказалось меньше, чем `n`, вернётся ошибка `io.ErrUnexpectedEOF`.
+Это используется при парсинге бинарных данных, чтобы гарантировать, что нужное минимальное количество байт будет вычитано.
+
+### Другие интерфейсы пакета io
+Мы привели примеры основных методов работы с функциями и интерфейсами ввода-вывода.
+Кроме них, в пакете осталось ещё много интересного.
+Рекомендуем открыть [документацию пакета `io`](https://golang.org/pkg/io/), чтобы посмотреть на определения остальных интерфейсов.
+`io.Reader` и `io.Writer` — основные интерфейсы, но могут пригодиться и другие.
+
+### Задание 2
+В пакете `io` есть функция `LimitReader(r io.Reader, n int64) io.Reader.О` на ограничивает количество байт, которое можно вычитать из `io.Reader`.
+
+Запрограммируйте подобную функцию самостоятельно:
+```go
+package main
+
+import (
+    "io"
+    "log"
+    "os"
+    "strings"
+)
+
+func LimitReader(r io.Reader, n int) io.Reader {
+    // ...
+}
+
+func main() {
+    r := strings.NewReader("some io.Reader stream to be read\n")
+    lr := LimitReader(r, 4)
+
+    _, err := io.Copy(os.Stdout, lr)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
+
+Код должен вывести подстроку `some`.
+
+**Подсказка**: подумайте, как можно ограничить чтение.
+Нужно как-то подсчитывать и запоминать количество байт, оставшихся для чтения из `reader`.
+
+Ответ:
+```go
+package main
+
+import (
+    "io"
+    "log"
+    "os"
+    "strings"
+)
+
+type LimitedReader struct {
+    reader io.Reader
+    //  запоминаем количество считанных байт
+    left   int
+}
+
+func LimitReader(r io.Reader, n int) io.Reader {
+    return &LimitedReader{reader: r, left: n}
+}
+
+func (r *LimitedReader) Read(p []byte) (int, error) {
+    if r.left == 0 {
+        return 0, io.EOF
+    }
+    if r.left < len(p) {
+        p = p[0:r.left]
+    }
+    n, err := r.reader.Read(p)
+    r.left -= n
+    return n, err
+}
+
+func main() {
+    r := strings.NewReader("some io.Reader stream to be read\n")
+    lr := LimitReader(r, 4)
+
+    _, err := io.Copy(os.Stdout, lr)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```
