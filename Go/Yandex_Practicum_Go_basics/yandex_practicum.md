@@ -6341,4 +6341,504 @@ fmt.Println(*varBool)                               // true — получить
 Выставляем значение переменной `varBool`, используя метод `Set(val reflect.Value)` и передавая в него подходящее по типу `Value`.
 
 
-## 
+## Fields и NumFields — итерация по полям структуры
+Если вы когда-либо писали на низкоуровневом С, то наверняка вам приходилось работать со структурами как с массивами байт.
+Просто брали указатель на структуру и двигались по ней этим указателем, получая доступ к полям.
+Процесс крайне опасный и неудобный, однако, надо признать, крайне эффективный в части производительности.
+
+> В Python тоже есть возможность получить доступ к элементам объекта класса как к словарю.
+> В Go тоже хотелось бы иметь такую возможность.
+> Пакет `reflect` её также предоставляет, однако следует отметить, что производительность такого решения ниже, чем обычного доступа к полям структур.
+
+Рассмотрим на примере:
+```go
+package main
+
+import "reflect"
+
+//
+func ExtendedPrint(v interface{}) {
+    val := reflect.ValueOf(v)
+    //  проверяем, а не передали ли нам указатель на структуру
+    switch val.Kind() {
+    case reflect.Ptr:
+        if val.Elem().Kind() != reflect.Struct {
+            fmt.Printf("Pointer to %v : %v", val.Elem().Type(), val.Elem())
+            return
+        }
+        // если всё-таки это указатель на структуру, дальше будем работать с самой структурой
+        val = val.Elem()
+
+    case reflect.Struct: // работаем со структурой
+    default:
+        fmt.Printf("%v : %v", val.Type(), val)
+        return
+    }
+
+    fmt.Printf("Struct of type %v and number of fields %d:\n", val.Type(), val.NumField())
+    for fieldIndex := 0; fieldIndex < val.NumField(); fieldIndex++ {
+        field := val.Field(fieldIndex) // field — тоже Value
+        fmt.Printf("\tField %v: %v - val :%v\n", val.Type().Field(fieldIndex).Name, field.Type(), field)
+        // имя поля мы получаем не из значения поля, а из его типа. 
+    }
+}
+
+func main() {
+    s := MyStruct{
+        A: 3,
+        B: "some",
+        C: false,
+    }
+    s1 := &MyStruct{
+        A: 7,
+        B: "text",
+        C: true,
+    }
+
+    ExtendedPrint(s)
+    ExtendedPrint(s1)
+    ExtendedPrint(struct {
+        E int
+        C string
+    }{2, "other text"})
+    ExtendedPrint("some string")
+}
+```
+ 
+Вывод будет таким:
+```
+Struct of type main.MyStruct and number of fields 3:
+  Field A: int - val :3
+  Field B: string - val :some
+  Field C: bool - val :false
+Struct of type main.MyStruct and number of fields 3:
+  Field A: int - val :7
+  Field B: string - val :text
+  Field C: bool - val :true
+Struct of type struct { E int; C string } and number of fields 2:
+  Field E: int - val :2
+  Field C: string - val :other text
+string : some string
+```
+
+Получаем довольно удобную и интересную особенность, которая часто используется для исследования переданных структур.
+Если вам нужно получить доступ к одному из полей переданной структуры по имени, используйте полезные функции:
+
+* FieldByName(name string) — возвращает Value поля структуры по имени.
+* FieldByIndex(i int) — возвращает поле структуры по индексу.
+
+Для методов типа есть аналогичные функции.
+
+
+## Изменение поля структуры
+С помощью рефлексии можно изменить переданный объект.
+
+Однако не всякий объект может быть изменён.
+Чтобы узнать, можно ли изменить `Value`, используется метод `CanSet()`.
+
+Например, реализуем функцию, которая определяет, есть ли у входной структуры поле с именем.
+И если такое поле есть, она его изменит.
+```go
+func ChangeFieldByName(v interface{}, fname string, newval int) {
+    val := reflect.ValueOf(v)
+    if val.Kind() == reflect.Ptr {
+        val = val.Elem()
+    }
+    if val.Kind() != reflect.Struct {
+        return
+    }
+
+    field := val.FieldByName(fname)
+    if field.IsValid() {
+        if field.CanSet() {
+            switch field.Kind() {
+            case reflect.Int:
+                field.SetInt(int64(newval))
+            case reflect.String:
+                field.SetString(strconv.Itoa(newval))
+            }
+        }
+    }
+}
+```
+
+> **Важно**
+> `CanSet` проверяет, отразится ли изменение `Value` на переданной ей переменной.
+> Если переменная передана в `ValueOf` по значению, то функция не сработает.
+> Ещё один важный момент: изменить значение можно только для экспортируемых полей.
+
+
+## Динамическая информация о типе (парсинг тегов)
+Для каждого поля структуры можно задать теги — строку с дополнительной информацией по этому полю.
+Например, можно указать настройки сериализации в формат JSON.
+Теги задаются в формате `key:value`, причём может быть задано несколько тегов, разделённых пробелами.
+При парсинге тегов они преобразуются в набор пар «ключ-значение».
+
+Обычно теги используются тогда, когда недостаточно информации о поле структуры, полученной через рефлексию.
+К примеру, хотелось бы иметь точное название поля структуры для сериализации.
+
+Используя пакет `reflect`, напишем функцию `GetStructTags`, которая вернёт информацию обо всех заданных тегах структуры и их значениях:
+```go
+type (
+    // FieldsInfo содержит информацию о полях структуры (ключ: имя поля).
+    FieldsInfo map[string]FieldInfo
+
+    // FieldInfo содержит информацию о поле структуры.
+    FieldInfo struct {
+        // тип поля
+        Type     string     `json:"type"`
+        // теги
+        Tags     TagsInfo   `json:"tags,omitempty"`
+        // информация по полям вложенной структуры
+        Embedded FieldsInfo `json:"embedded,omitempty"`
+    }
+
+    // TagsInfo содержит информацию о тегах (ключ: имя тега).
+    TagsInfo map[string][]string
+)
+
+// String возвращает строковую репрезентацию типа FieldsInfo.
+func (f FieldsInfo) String() string {
+    bz, _ := json.MarshalIndent(f, "", "   ")
+    return string(bz)
+}
+
+// GetStructTags возвращает информацию по каждому полю структуры.
+func GetStructTags(obj interface{}) (retInfos FieldsInfo) {
+    retInfos = make(FieldsInfo)
+
+    // получаем описание типа переданного объекта
+    // далее по коду явно передаём в функцию тип `reflect.Type`, поддержим здесь этот случай рекурсивного вызова
+    var objType reflect.Type
+    if t, ok := obj.(reflect.Type); ok {
+        objType = t
+    } else {
+        objType = reflect.ValueOf(obj).Type()
+    }
+
+    // чиним вход: если передали указатель, получим описание типа под указателем
+    if objType.Kind() == reflect.Ptr {
+        objType = objType.Elem()
+    }
+
+    // проверка входа: если объект не структура, искать теги не нужно
+    if objType.Kind() != reflect.Struct {
+        return
+    }
+
+    // итерируемся по всем полям структуры
+    // NumField() — возвращает количество полей в структуре
+    for fieldIdx := 0; fieldIdx < objType.NumField(); fieldIdx++ {
+        field := objType.Field(fieldIdx) // получаем поле структуры
+        retInfos[field.Name] = FieldInfo{
+            Type:     field.Type.String(), // тип структуры
+            Tags:     parseTagString(string(field.Tag)), // теги структуры
+            Embedded: GetStructTags(field.Type), // рекурсивно вызываем для каждого поля эту же функцию; если поле — структура, то пройдёмся и по ней.
+        }
+    }
+
+    return
+}
+
+// parseTagString десериализует тег-строку поля структуры.
+// Дедупликация имён тегов: первый по порядку (слева направо).
+// Ограничения: значение тега не может содержать символы ':' и '"'.
+func parseTagString(tagRaw string) (retInfos TagsInfo) {
+    retInfos = make(TagsInfo)
+
+    // пример строки: json:"name" pg:"nullable,sortable"
+    for _, tag := range strings.Split(tagRaw, " ") {
+        if tag = strings.TrimSpace(tag); tag == "" {
+            continue
+        }
+
+        tagParts := strings.Split(tag, ":")
+        if len(tagParts) != 2 {
+            continue
+        }
+
+        tagName := strings.TrimSpace(tagParts[0])
+        if _, found := retInfos[tagName]; found {
+            continue
+        }
+
+        tagValuesRaw, _ := strconv.Unquote(tagParts[1])
+        tagValues := make([]string, 0)
+        for _, value := range strings.Split(tagValuesRaw, ",") {
+            if value := strings.TrimSpace(value); value != "" {
+                tagValues = append(tagValues, value)
+            }
+        }
+
+        retInfos[tagName] = tagValues
+    }
+
+    return
+}
+```
+
+Пример выполнения:
+```go
+type (
+    TestStruct struct {
+        Id        string `json:"id" format:"uuid" example:"68b69bd2-8db6-4b7f-b7f0-7c78739046c6"`
+        Name      string `json:"name" example:"Bob"`
+        Group     Group  `json:"group"`
+        CreatedAt int64  `json:"created_at" format:"unix" example:"1622647813"`
+    }
+
+    Group struct {
+        Id             uint64   `json:"id"`
+        PermsOverrides []string `json:"overrides" example:"USERS_RW,COMPANY_RWC"`
+    }
+)
+
+func main() {
+    var s *TestStruct
+    fmt.Println(GetStructTags(s))
+}
+```
+```
+{
+   "CreatedAt": {
+      "type": "int64",
+      "tags": {
+         "example": [
+            "1622647813"
+         ],
+         "format": [
+            "unix"
+         ],
+         "json": [
+            "created_at"
+         ]
+      }
+   },
+   "Group": {
+      "type": "main.Group",
+      "tags": {
+         "json": [
+            "group"
+         ]
+      },
+      "embedded": {
+         "Id": {
+            "type": "uint64",
+            "tags": {
+               "json": [
+                  "id"
+               ]
+            }
+         },
+         "PermsOverrides": {
+            "type": "[]string",
+            "tags": {
+               "example": [
+                  "USERS_RW",
+                  "COMPANY_RWC"
+               ],
+               "json": [
+                  "overrides"
+               ]
+            }
+         }
+      }
+   },
+   "Id": {
+      "type": "string",
+      "tags": {
+         "example": [
+            "68b69bd2-8db6-4b7f-b7f0-7c78739046c6"
+         ],
+         "format": [
+            "uuid"
+         ],
+         "json": [
+            "id"
+         ]
+      }
+   },
+   "Name": {
+      "type": "string",
+      "tags": {
+         "example": [
+            "Bob"
+         ],
+         "json": [
+            "name"
+         ]
+      }
+   }
+}
+```
+
+
+## Ключевые мысли урока
+Мы рассмотрели основные возможности применения рефлексии в языке Go.
+Рефлексия позволяет на основе переданной переменной узнать тип и значение этой переменной.
+Благодаря этому можно создавать гибкий код, работающий с очень широким набором типов входных данных.
+Однако следует помнить, что рефлексия замедляет работу программы.
+По возможности следует использовать другие подходы, так как работать такая программа будет крайне медленно.
+
+Кроме того, мы исследовали:
+* Определение типа переменной.
+* Определение имён и количества полей структуры, а также доступ к ним по индексу.
+* Изменение переменной через рефлексию.
+* Использование тегов.
+
+
+## Задание 2
+Представьте, что вы разрабатываете многопользовательскую игру.
+Игровая логика обсчитывается на сервере, реализованном на Go.
+В какой-то момент от дизайнеров поступает запрос на внедрение для игроков массовых заклинаний.
+То есть заклинание должно действовать на множество объектов, имеющих разнообразные структуры и типы.
+Тут вы понимаете, что переписывать все типы и реализовывать для каждого интерфейс `CastReceiver` — слишком сложная задача.
+
+Реализуйте применение заклинаний с помощью рефлексии.
+Каждое заклинание удовлетворяет интерфейсу `Spell` — можно узнать, на какую характеристику объекта и на какую величину оно влияет.
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+    "reflect"
+)
+
+type Spell interface {
+    // название заклинания
+    Name() string
+    // характеристика, на которую воздействует
+    Char() string
+    // количественное значение
+    Value() int
+}
+
+// CastReceiver — если объект удовлетворяет этом интерфейсу, то заклинание применяется через него
+type CastReceiver interface {
+    ReceiveSpell(s Spell)
+}
+
+func CastToAll(spell Spell, objects []interface{}) {
+    for _, obj := range objects {
+        CastTo(spell, obj)
+    }
+}
+
+func CastTo(spell Spell, object interface{}) {
+    // реализуйте эту функцию.
+}
+
+type spell struct {
+    name string
+    char string
+    val  int
+}
+
+func newSpell(name string, char string, val int) Spell {
+    return &spell{name: name, char: char, val: val}
+}
+
+func (s spell) Name() string {
+    return s.name
+}
+
+func (s spell) Char() string {
+    return s.char
+}
+
+func (s spell) Value() int {
+    return s.val
+}
+
+type Player struct {
+    name   string
+    health int
+}
+
+func (p Player) ReceiveSpell(s Spell) {
+    if s.Char() == "Health" {
+        p.health += s.Value()
+    }
+}
+
+type Zombie struct {
+    Health int
+}
+
+type Daemon struct {
+    Health int
+}
+
+type Orc struct {
+    Health int
+}
+
+type Wall struct {
+    Durability int
+}
+
+func main() {
+
+    player := &Player{
+        name:   "Player_1",
+        health: 100,
+    }
+
+    enemies := []interface{}{
+        &Zombie{Health: 1000},
+        &Zombie{Health: 1000},
+        &Orc{Health: 500},
+        &Orc{Health: 500},
+        &Orc{Health: 500},
+        &Daemon{Health: 1000},
+        &Daemon{Health: 1000},
+        &Wall{Durability: 100},
+    }
+
+    CastToAll(newSpell("fire", "Health", -50), append(enemies, player))
+    CastToAll(newSpell("heal", "Health", 190), append(enemies, player))
+
+    fmt.Println(player)
+}
+```
+
+Ответ:
+```go
+func CastTo(spell Spell, object interface{}) {
+    if recv, ok := object.(CastReceiver); ok {
+        recv.ReceiveSpell(spell)
+        return
+    }
+
+    val := reflect.ValueOf(object)
+
+    // проверяем, что переданный объект — указатель на структуру
+    if val.Kind() != reflect.Ptr || val.Elem().Kind() != reflect.Struct {
+        return
+    }
+
+    // ищем в структуре нужную характеристику
+    field := val.Elem().FieldByName(spell.Char())
+    // не нашли
+    if !field.IsValid() {
+        return
+    }
+
+    // нашли, но изменить её нельзя
+    if !field.CanSet() {
+        return
+    }
+
+    // тип найденного поля — не целое число
+    if field.Kind() != reflect.Int && field.Kind() != reflect.Int8 &&
+        field.Kind() != reflect.Int16 && field.Kind() != reflect.Int32 &&
+        field.Kind() != reflect.Int64 {
+        return
+    }
+
+    field.SetInt(field.Int() + int64(spell.Value()))
+
+    log.Printf("Casted spell %s to %#v", spell.Name(), object)
+}
+```
