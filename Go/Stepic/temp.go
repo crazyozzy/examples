@@ -2,21 +2,25 @@ package main
 
 import (
 	"fmt"
-	"strings"
+	"unicode"
 )
 
 func main() {
 	var iStrText string
+	var oWrongPass bool
 	
 	fmt.Scan(&iStrText)
 
 	for _, v := range iStrText {
-		fmt.Println(iStrText, string(v))
-		if strings.Count(iStrText, string(v)) > 1 {
-			iStrText = strings.Trim(iStrText, string(v))
-			fmt.Println(iStrText, string(v))
+		if !unicode.Is(unicode.Latin, v) && !unicode.IsDigit(v) {
+			oWrongPass = true
+			break
 		}
 	}
 
-	fmt.Println(iStrText)
+	if !oWrongPass && len(iStrText) >= 5 {
+		fmt.Println("Ok")
+	} else {
+		fmt.Println("Wrong password")
+	}
 }

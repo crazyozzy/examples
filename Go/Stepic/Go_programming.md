@@ -3564,5 +3564,68 @@ func main() {
 }
 ```
 
+#### Задание №4
+Дается строка.
+Нужно удалить все символы, которые встречаются более одного раза и вывести получившуюся строку
+
+Ответ:
+```go
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+func main() {
+	var iStrText, oStrText string
+	
+	fmt.Scan(&iStrText)
+
+	for _, v := range iStrText {
+		if strings.Count(iStrText, string(v)) == 1 {
+			oStrText += string(v)
+		}
+	}
+
+	fmt.Println(oStrText)
+}
+```
+
+#### Задание №5
+Ваша задача сделать проверку подходит ли пароль вводимый пользователем под заданные требования.
+Длина пароля должна быть не менее 5 символов, он должен содержать только арабские цифры и буквы латинского алфавита.
+На вход подается строка-пароль.
+Если пароль соответствует требованиям - вывести "Ok", иначе вывести "Wrong password"
+
+Ответ:
+```go
+package main
+
+import (
+	"fmt"
+	"unicode"
+)
+
+func main() {
+	var iStrText string
+	var oWrongPass bool
+	
+	fmt.Scan(&iStrText)
+
+	for _, v := range iStrText {
+		if !unicode.Is(unicode.Latin, v) && !unicode.IsDigit(v) {
+			oWrongPass = true
+			break
+		}
+	}
+
+	if !oWrongPass && len(iStrText) >= 5 {
+		fmt.Println("Ok")
+	} else {
+		fmt.Println("Wrong password")
+	}
+}
+```
 
 </details>
