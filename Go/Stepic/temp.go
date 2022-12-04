@@ -1,26 +1,11 @@
-package main
+func M() float64 {
+	return p * v
+}
 
-import (
-	"fmt"
-	"unicode"
-)
+func W() float64 {
+	return math.Sqrt(k / M())
+}
 
-func main() {
-	var iStrText string
-	var oWrongPass bool
-	
-	fmt.Scan(&iStrText)
-
-	for _, v := range iStrText {
-		if !unicode.Is(unicode.Latin, v) && !unicode.IsDigit(v) {
-			oWrongPass = true
-			break
-		}
-	}
-
-	if !oWrongPass && len(iStrText) >= 5 {
-		fmt.Println("Ok")
-	} else {
-		fmt.Println("Wrong password")
-	}
+func T() float64 {
+	return 6 / W()
 }
