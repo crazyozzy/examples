@@ -1,33 +1,31 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 	"strconv"
-	"strings"
 )
 
 func main() {
-	var iStr string
-	var iStrSlice []string
-	var iFloatSlice [2]float64
+	fn := func(iN uint) uint {
+		iStr := strconv.Itoa(int(iN))
+		oStr := ""
 
-	iStdin := bufio.NewScanner(os.Stdin)
-	if iStdin.Scan() {
-		iStr = iStdin.Text()
+		for _, v := range iStr {
+			switch string(v) {
+			case "2", "4", "6", "8":
+				oStr += string(v)
+			}
+		}
+		
+		temp, _ := strconv.ParseUint(oStr, 10, 64)
+		iN = uint(temp)
+
+		if iN == 0 {
+			return 100
+		} else {
+			return iN
+		}
 	}
 
-	iStrSlice = strings.Split(iStr, ";")
-
-	iStrSlice[0] = strings.Replace(iStrSlice[0], " ", "", -1)
-	iStrSlice[1] = strings.Replace(iStrSlice[1], " ", "", -1)
-	iStrSlice[0] = strings.Replace(iStrSlice[0], ",", ".", -1)
-	iStrSlice[1] = strings.Replace(iStrSlice[1], ",", ".", -1)
-	fmt.Println(iStrSlice)
-
-	iFloatSlice[0], _ = strconv.ParseFloat(iStrSlice[0], 64)
-	iFloatSlice[1], _ = strconv.ParseFloat(iStrSlice[1], 64)
-
-	fmt.Printf("%.4f", iFloatSlice[0] / iFloatSlice[1])
+	fmt.Print(fn(727178))
 }
