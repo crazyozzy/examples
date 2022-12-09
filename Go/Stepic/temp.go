@@ -1,44 +1,34 @@
 package main
 
-import (
-	"encoding/json" // пакет используется для проверки ответа, не удаляйте его
-	"fmt"           // пакет используется для проверки ответа, не удаляйте его
-	"os"            // пакет используется для проверки ответа, не удаляйте его
-)
+import "fmt" // пакет используется для проверки ответа, не удаляйте его
 
+type battery struct {
+	energy int
+}
 
+func (b battery) String() string {
+	var oStr string
+
+	for i := 0; i < 10 - b.energy; i++ {
+		oStr += " "
+	}
+	for i := 0; i < b.energy; i++ {
+		oStr += "X"
+	}
+
+	return "[" + oStr + "]"
+}
 
 func main() {
-	value1, value2, operation := readTask() // исходные данные получаются с помощью этой функции
-                                            // все полученные значения имеют тип пустого интерфейса
-	var iFloat1, iFloat2 float64
+    // batteryForTest - не забывайте об имени
+	var iEnergy string
+	fmt.Scan(&iEnergy)
+	batteryForTest := battery{}
 
-	switch v := value1.(type) {
-	case float64:
-		iFloat1 = v
-	default:
-		fmt.Printf("value=%v: %T", v, v)
-		os.Exit(1)
+	for _, v := range iEnergy {
+		if string(v) == "1" {
+			batteryForTest.energy++
+		}
 	}
-
-	switch v := value2.(type) {
-	case float64:
-		iFloat2 = v
-	default:
-		fmt.Printf("value=%v: %T", v, v)
-		os.Exit(1)
-	}
-
-	switch operation {
-	case "+":
-		fmt.Printf("%.4f", iFloat1 + iFloat2)
-	case "-":
-		fmt.Printf("%.4f", iFloat1 - iFloat2)
-	case "*":
-		fmt.Printf("%.4f", iFloat1 * iFloat2)
-	case "/":
-		fmt.Printf("%.4f", iFloat1 / iFloat2)
-	default:
-		fmt.Print("неизвестная операция")
-	}
+// } Скобка, закрывающая функцию main() вам не видна, но она есть
 }
