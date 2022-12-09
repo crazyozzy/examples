@@ -1,34 +1,31 @@
 package main
 
-import "fmt" // пакет используется для проверки ответа, не удаляйте его
-
-type battery struct {
-	energy int
-}
-
-func (b battery) String() string {
-	var oStr string
-
-	for i := 0; i < 10 - b.energy; i++ {
-		oStr += " "
-	}
-	for i := 0; i < b.energy; i++ {
-		oStr += "X"
-	}
-
-	return "[" + oStr + "]"
-}
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+)
 
 func main() {
-    // batteryForTest - не забывайте об имени
-	var iEnergy string
-	fmt.Scan(&iEnergy)
-	batteryForTest := battery{}
+	file, err := os.Open("task.txt")
+	if err != nil {
+		panic("Cannot open input file!")
+	}
 
-	for _, v := range iEnergy {
-		if string(v) == "1" {
-			batteryForTest.energy++
+	buf := bufio.NewReader(file)
+
+	for i := 1; ; i++ {
+		num, err := buf.ReadString(';')
+		if err != nil && err != io.EOF {
+			panic("Cannot read new number!")
+		} else if err == io.EOF {
+			break
+		}
+
+		if num == "0;" {
+			fmt.Println("Index of 0 is: ", i)
+			break
 		}
 	}
-// } Скобка, закрывающая функцию main() вам не видна, но она есть
 }
