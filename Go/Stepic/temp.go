@@ -1,56 +1,34 @@
 package main
 
 import (
-	"encoding/json"
+	"bufio"
 	"fmt"
 	"io"
 	"os"
+	"strings"
+	"time"
 )
 
-type student struct {
-	LastName   string
-	FirstName  string
-	MiddleName string
-	Birthday   string
-	Address    string
-	Phone      string
-	Rating     []int
-}
-
-type group struct {
-	ID       int
-	Number   string
-	Year     int
-	Students []student
-}
-
-type groupAvg struct {
-	Average float64
-}
-
 func main() {
-	var iGroup group
-	var avgRating groupAvg
+	const timeFormat = "2006-01-02 15:04:05"
 
-	iData, err := io.ReadAll(os.Stdin)
+	iByte, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil && err != io.EOF {
-		panic("Cannot read stdin!")
+		panic(err)
 	}
 
-	if err := json.Unmarshal(iData, &iGroup); err != nil {
-		panic("Cannot unmarshal json!")
+	iStr := strings.TrimRight(string(iByte), "\r\n")
+	iStr = strings.TrimRight(iStr, "\n")
+
+	//2020-05-15 08:00:00
+	iTime, err := time.Parse(timeFormat, iStr)
+	if err != nil && err != io.EOF {
+		panic(err)
 	}
 
-	for _, st := range iGroup.Students {
-		avgRating.Average += float64(len(st.Rating))
+	if iTime.Hour() >= 13 {
+		fmt.Println(iTime.AddDate(0, 0, 1).Format(timeFormat))
+	} else {
+		fmt.Println(iTime.Format(timeFormat))
 	}
-
-	avgRating.Average = avgRating.Average / float64(len(iGroup.Students))
-
-	oData, err := json.MarshalIndent(avgRating, "", "    ")
-	if err != nil {
-		panic("Cannot marshall json!")
-	}
-
-	fmt.Printf("%s", oData)
 }

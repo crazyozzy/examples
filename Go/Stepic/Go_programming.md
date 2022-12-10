@@ -6168,3 +6168,399 @@ func main() {
 ```
 
 </details>
+
+### Аннотирование структур
+Давайте рассмотрим вопрос тонкой настройки кодирования / декодирования данных в формате JSON.
+На предшествующих шагах мы видели, что имена полей объектов JSON выглядят также, как и имена полей структуры, в которую или из которой они кодируются.
+Но что если мы хотим изменить эти имена?
+Или кодировать / декодировать только часть полей?
+Для этого мы можем использовать специальные аннотации - тэги для полей нашей структуры.
+
+Продемонстрировать используемые теги проще всего на примере:
+```go
+// в общем виде аннотация выглядит так: `json:"используемое_имя,опция,опция"`
+
+type myStruct struct {
+	// при кодировании / декодировании будет использовано имя name, а не Name
+	Name string `json:"name"`
+	
+	// при кодировании / декодировании будет использовано то же имя (Age),
+	// но если значение поля равно 0 (пустое значение: false, nil, пустой слайс и пр.),
+	// то при кодировании оно будет опущено
+	Age int `json:",omitempty"`
+	
+	// при кодировании / декодировании поле всегда игнорируется
+	Status bool `json:"-"`
+}
+
+m := myStruct{Name: "John Connor", Age: 0, Status: true}
+
+data, err := json.Marshal(m)
+if err != nil {
+	fmt.Println(err)
+	return
+}
+
+fmt.Printf("%s", data) // {"name":"John Connor"}
+```
+
+Как видите, в закодированных в формат JSON данных поле "Name" именуется как "name", а Age и Status отсутствуют, но по разным причинам: Status всегда игнорируется, поскольку установлен тег "-", а Age проигнорирован, т.к. его значение 0 и установлен тег "omitempty".
+Таким образом, мы можем довольно тонко настроить процесс кодирования / декодирования данных: использовать требуемые нам имена, игнорировать "пустые" (нулевые) значения для экономного использования ресурсов или же просто игнорировать определенные поля структур, которые в работе не будут использоваться.
+
+Завершая рассмотрение этого вопроса нужно отметить следующее: неэкспортируемые поля (имена которых начинаются со строчной буквы) не участвуют в кодировании / декодировании.
+
+### Типы Encoder и Decoder
+`encoding/json` позволяет оперировать не только байтовыми срезами, но и работать с уже знакомыми нам типами `io.Reader` и `io.Writer`, для этого пакет предоставляет нам типы `Encoder` и `Decoder`.
+Данные типы помимо методов `Encode()` и `Decode()` предоставляют нам ряд дополнительных методов, которые могут быть использованы в определенных случаях.
+Рассмотрим базовые методы, которые применяются наиболее часто:
+```go
+type testStruct struct {
+	Name string `json:"name"`
+	Age  int    `json:"age"`
+}
+
+var (
+	src = testStruct{Name: "John Connor", Age: 35} // структура с данными
+	dst = testStruct{}                             // структура без данных
+	buf = new(bytes.Buffer)                        // буфер для чтения и записи
+)
+
+enc := json.NewEncoder(buf)
+dec := json.NewDecoder(buf)
+
+enc.Encode(src)
+dec.Decode(&dst)
+
+fmt.Print(dst) // {John Connor 35}
+```
+
+В примере мы сделали следующее: во-первых, создали объекты `Encoder` и `Decoder` с помощью функций `NewEncoder` и `NewDecoder` соответственно.
+Каждая из этих функций получила в качестве аргумента буфер, который удовлетворяет одновременно и интерфейсу `io.Reader`, и интерфейсу `io.Writer`, соответственно мы смогли сначала записать в него данные, а затем их прочитать, используя методы `Encode` и `Decode` соответственно.
+
+В каких ситуациях применять функции `Marshal` и `Unmarshal` и методы `Encode` и `Decode` соответственно?
+Все зависит от того, с каким типом данных мы работаем, какой в настоящее время нам более удобен.
+Обратите внимание, в отличие от данных в формате CSV, с которыми мы работали ранее, данные в формате JSON являются цельным объектом (в т.ч. из-за используемых скобок), поэтому мы не можем кодировать и декодировать их поэтапно.
+
+### Задание
+<details><summary>Раскрыть</summary>
+
+Данная задача ориентирована на реальную работу с данными в формате JSON.
+Для решения мы будем использовать справочник ОКВЭД (Общероссийский классификатор видов экономической деятельности), который был размещен на web-портале data.gov.ru.
+
+Необходимая вам информация о структуре данных содержится в файле structure-20190514T0000.json, а сами данные, которые вам потребуется декодировать, содержатся в файле data-20190514T0100.json.
+Файлы размещены в [нашем репозитории на github.com](https://github.com/semyon-dev/stepik-go/tree/master/work_with_json).
+
+Для того, чтобы показать, что вы действительно смогли декодировать документ вам необходимо в качестве ответа записать сумму полей global_id всех элементов, закодированных в файле.
+
+Ответ:
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+)
+
+// https://transform.tools/json-to-go
+type Okved []struct {
+	Id int `json:"global_id"`
+}
+
+func main() {
+	var oSum int
+	var iCompanys Okved
+
+	iFile, err := os.Open("data-20190514T0100.json")
+	defer iFile.Close()
+	if err != nil {
+		panic(err)
+	}
+	
+	iData, err := io.ReadAll(iFile)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := json.Unmarshal(iData, &iCompanys); err != nil {
+		panic(err)
+	}
+
+	for _, v := range iCompanys {
+		oSum += v.Id
+	}
+
+	fmt.Printf("%d", oSum)
+}
+```
+
+</details>
+
+
+## Работа с датой и временем
+### time
+Модуль time стандартной библиотеки предоставляет в наше распоряжение ряд примитивов для работы со временем.
+
+#### Создание структуры Time
+Первый примитив – структура `Time` — конкретные дата и время.
+Создать эту структуру с конкретным значением нам позволяет ряд функций:
+```go
+package main
+
+import (
+	"fmt"
+	"time"
+)
+
+func main() {
+	// func Now() Time
+	// возвращает текущую дату и время
+	now := time.Now()
+
+	// func Date(year int, month Month, day, hour, min, sec, nsec int, loc *Location) Time
+	// возвращает дату и время в соответствии с заданными параметрами: годом, месяцем, днем, временем и пр.
+	currentTime := time.Date(
+		2020,     // год
+		time.May, // месяц
+		15,       // день
+		10,       // часы
+		13,       // минуты
+		12,       // секунды
+		45,       // наносекунды
+		time.UTC, // временная зона
+	)
+
+	// func Unix(sec int64, nsec int64) Time
+	// возвращает дату и время в соответствии с заданными параметрами: секундами и наносекундами, прошедшими с начала эпохи Unix — 01.01.1970 г.
+	// https://ru.wikipedia.org/wiki/Unix-%D0%B2%D1%80%D0%B5%D0%BC%D1%8F
+	unixTime := time.Unix(
+		150000, // секунды
+		1,      // наносекунды
+	)
+
+	fmt.Println(now.Format("02-01-2006 15:04:05"))         // 15-05-2020 09:58:16
+	fmt.Println(currentTime.Format("02-01-2006 15:04:05")) // 15-05-2020 10:13:12
+	fmt.Println(unixTime.Format("02-01-2006 15:04:05"))    // 02-01-1970 22:40:00
+}
+```
+
+Думаю, что у вас резонно должен возникнуть вопрос — что за метод `Format` был использован при печати значений времени, и почему ему был передан такой странный аргумент?
+Ничего странного, сейчас мы рассмотрим этот вопрос подробнее.
+
+#### Конвертирование строк в структуру Time
+На практике очень часто возникает задача конвертировать данные о дате и времени из строкового вида, чтобы в дальнейшем получить доступ к методам работы со временем.
+Однако вариантов строкового представления даты и времени очень много, в некоторых случаях нам интересна только дата, а в некоторых — только время.
+Как объяснить Go, что к чему в строке?
+Для этого мы задаем Go шаблон, с которым и сравнивается целевая строка.
+
+Вот **основа для шаблона: «Mon Jan 2 15:04:05 MST 2006»: понедельник, 2 января 2006 г. 15:04:05, североамериканское горное стандартное время**.
+В первый раз это может вызвать сложности, но в дальнейшем вы запомните эти базовые дату и время.
+
+За парсинг данных из строковых отвечают 2 функции:
+```go
+// func Parse(layout, value string) (Time, error)
+// парсит дату и время в строковом представлении
+firstTime, err := time.Parse("2006/01/02 15-04", "2020/05/15 17-45")
+if err != nil {
+	panic(err)
+}
+
+// LoadLocation находит временную зону в справочнике IANA
+// https://www.iana.org/time-zones
+loc, err := time.LoadLocation("Asia/Yekaterinburg")
+if err != nil {
+	panic(err)
+}
+
+// func ParseInLocation(layout, value string, loc *Location) (Time, error)
+// парсит дату и время в строковом представлении с отдельным указанием временной зоны
+secondTime, err := time.ParseInLocation("Jan 2 06 03:04:05pm", "May 15 20 05:45:10pm", loc)
+if err != nil {
+	panic(err)
+}
+
+fmt.Println(firstTime.Format("02-01-2006 15:04:05"))  // 15-05-2020 17:45:00
+fmt.Println(secondTime.Format("02-01-2006 15:04:05")) // 15-05-2020 17:45:10
+```
+
+Вновь встречаем тот же метод `Format`, только теперь его аргумент должен быть гораздо более понятен — `Format` возвращает нам строковое представление времени в соответствии с заданным шаблоном.
+
+### Методы структуры Time
+#### Методы, возвращающие отдельные элементы структуры
+Таких методов довольно много и в целом они не должны вызвать никаких проблем, для большей части этих методов мы сделаем короткие примеры:
+```go
+current := time.Date(2020, time.May, 15, 17, 45, 12, 0, time.Local)
+
+// func (t Time) Date() (year int, month Month, day int)
+fmt.Println(current.Date()) // 2020 May 15
+
+// func (t Time) Year() int
+fmt.Println(current.Year()) // 2020
+
+// func (t Time) Month() Month
+fmt.Println(current.Month()) // May
+
+// func (t Time) Day() int
+fmt.Println(current.Day()) // 15
+
+// func (t Time) Clock() (hour, min, sec int)
+fmt.Println(current.Clock()) // 17 45 12
+
+// func (t Time) Hour() int
+fmt.Println(current.Hour()) //17
+
+// func (t Time) Minute() int
+fmt.Println(current.Minute()) // 45
+
+// func (t Time) Second() int
+fmt.Println(current.Second()) // 12
+
+// func (t Time) Unix() int64
+fmt.Println(current.Unix()) // 1589546712
+
+// func (t Time) Weekday() Weekday
+fmt.Println(current.Weekday()) // Friday
+
+// func (t Time) YearDay() int
+fmt.Println(current.YearDay()) // 136
+```
+
+Какие-то дополнительные комментарии к представленным методам не требуются — имена методов и возвращаемые значения говорят сами за себя.
+
+#### Конвертирование структуры Time в строку
+С методом Format мы уже знакомы.
+```go
+// func (t Time) Format(layout string) string
+current := time.Date(2020, time.May, 15, 17, 45, 12, 0, time.Local)
+fmt.Println(current.Format("02-01-2006 15:04:05")) // 15-05-2020 17:45:12
+```
+
+#### Сравнение структур Time
+```go
+firstTime := time.Date(2020, time.May, 15, 17, 45, 12, 0, time.Local)
+secondTime := time.Date(2020, time.May, 15, 16, 45, 12, 0, time.Local)
+
+// func (t Time) After(u Time) bool
+// true если позже
+fmt.Println(firstTime.After(secondTime)) // true
+
+// func (t Time) Before(u Time) bool
+// true если раньше
+fmt.Println(firstTime.Before(secondTime)) // false
+
+// func (t Time) Equal(u Time) bool
+// true если равны
+fmt.Println(firstTime.Equal(secondTime)) // false
+```
+
+#### Методы, изменяющие структуру Time
+```go
+now := time.Date(2020, time.May, 15, 17, 45, 12, 0, time.Local)
+
+// func (t Time) Add(d Duration) Time
+// изменяет дату в соответствии с параметром - "продолжительностью"
+future := now.Add(time.Hour * 12) // перемещаемся на 12 часов вперед
+
+// func (t Time) AddDate(years int, months int, days int) Time
+// изменяет дату в соответствии с параметрами - количеством лет, месяцев и дней
+past := now.AddDate(-1, -2, -3) // перемещаемся на 1 год, два месяца и 3 дня назад
+
+// func (t Time) Sub(u Time) Duration
+// вычисляет время, прошедшее между двумя датами
+fmt.Println(future.Sub(past)) // 10332h0m0s
+```
+
+Обратите внимание, что в методах `Add` и `AddDate` могут использоваться и отрицательные значения, это позволяет не только «добавлять» время (что видно из названий методов), но и «отнимать» его.
+
+### Задание
+<details><summary>Раскрыть</summary>
+
+#### Задание №1
+На стандартный ввод подается строковое представление даты и времени в следующем формате:
+
+1986-04-16T05:20:00+06:00
+Ваша задача конвертировать эту строку в Time, а затем вывести в формате UnixDate:
+
+Wed Apr 16 05:20:00 +0600 1986
+
+Для более эффективной работы рекомендуется ознакомиться с документацией о [содержащихся в модуле time константах](https://pkg.go.dev/time?tab=doc#pkg-constants).
+
+Ответ:
+```go
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+)
+
+func main() {
+	iByte, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	iStr := strings.TrimRight(string(iByte), "\r\n")
+	iStr = strings.TrimRight(iStr, "\n")
+
+	//1986-04-16T05:20:00+06:00
+	iTime, err := time.Parse(time.RFC3339, iStr)
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	fmt.Println(iTime.Format(time.UnixDate))
+}
+```
+
+#### Задание №2
+На стандартный ввод подается строковое представление даты и времени определенного события в следующем формате:
+
+2020-05-15 08:00:00
+Если время события до обеда (13-00), то ничего менять не нужно, достаточно вывести дату на стандартный вывод в том же формате.
+
+Если же событие должно произойти после обеда, необходимо перенести его на то же время на следующий день, а затем вывести на стандартный вывод в том же формате.
+
+Ответ:
+```go
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+)
+
+func main() {
+	const timeFormat = "2006-01-02 15:04:05"
+
+	iByte, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	iStr := strings.TrimRight(string(iByte), "\r\n")
+	iStr = strings.TrimRight(iStr, "\n")
+
+	iTime, err := time.Parse(timeFormat, iStr)
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	if iTime.Hour() >= 13 {
+		fmt.Println(iTime.AddDate(0, 0, 1).Format(timeFormat))
+	} else {
+		fmt.Println(iTime.Format(timeFormat))
+	}
+}
+```
+
+</details>
