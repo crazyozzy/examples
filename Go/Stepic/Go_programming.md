@@ -5901,4 +5901,270 @@ func main() {
 </details>
 
 
+## JSON
+### Общие сведения о формате JSON
+JSON (JavaScript Object Notation) – текстовый формат обмена структурированными данными, основанный на JavaScript. JSON – не единственная доступная нам форма решить данную задачу: аналогичной цели служат XML, YAML и Google’s Protocol Buffers, и каждый имеет свою нишу, однако из-за простоты, удобочитаемости и всеобщей поддержки наиболее широко используется именно JSON.
 
+JSON представляет собой одну из двух структур:
+* набор пар ключ - значение;
+* упорядоченный набор значений.
+
+В качестве значений в JSON могут быть использованы:
+1. объект – это неупорядоченное множество пар ключ - значение, заключённое в фигурные скобки «{ }». Ключ описывается строкой, между ним и значением стоит символ «:». Пары ключ - значение отделяются друг от друга запятыми;
+2. массив — это упорядоченное множество значений, заключенных в квадратные скобки «[ ]». Значения разделяются запятыми;
+3. число (целое или вещественное);
+4. литералы true, false (логические) и null;
+5. строка.
+
+Рассмотрим пример данных в формате JSON:
+```json
+{
+    "firstName": "Иван",
+    "lastName": "Иванов",
+    "address": {
+        "streetAddress": "Московское ш., 101, кв.101",
+        "city": "Ленинград",
+        "postalCode": 101101
+    },
+    "phoneNumbers": [
+        "812 123-1234",
+        "916 123-4567"
+    ]
+}
+```
+
+Здесь данные представляют из себя набор пар ключ - значение, при этом: firstName и lastName - строки, address - вложенный набор пар ключ - значения, а phoneNumbers - упорядоченный набор значений.
+
+
+### Кодирование и декодирование данных
+`Marshal` и `Unmarshal` (кодирование и декодирование) данных в формате JSON в стандартной библиотеке Go реализовано в пакете `encoding/json`.
+
+Наиболее удобным типом для кодирования / декодирования таких данных является структура и срез структур, именно его мы и рассмотрим в рамках этого курса.
+Но при этом нужно отметить, что в некоторых случаях, когда структура данных нам не известна, мы можем декодировать данные в типы с использованием интерфейсов: `interface{}`, `map[string]interface{}`, `[]interface{}`, `[]map[string]interface{}`, однако в дальнейшем такой способ потребует использования рефлексии для анализа таких данных, а это выходит за пределы рассматриваемой темы.
+
+В рассматриваемом пакете мы можем найти 3 функции, позволяющие кодировать / декодировать данные в байтовый срез, чтобы иметь возможность рассматривать конкретные примеры работы, давайте сначала рассмотрим эти функции.
+Начнем с функции для кодирования данных `Marshal`:
+```go
+type myStruct struct {
+	Name   string
+	Age    int
+	Status bool
+	Values []int
+}
+
+s := myStruct{
+	Name:   "John Connor",
+	Age:    35,
+	Status: true,
+	Values: []int{15, 11, 37},
+}
+
+// Функция Marshal принимает аргумент типа interface{} (в нашем случае это структура)
+// и возвращает байтовый срез с данными, кодированными в формат JSON.
+data, err := json.Marshal(s)
+if err != nil {
+	fmt.Println(err)
+	return
+}
+
+fmt.Printf("%s", data) // {"Name":"John Connor","Age":35,"Status":true,"Values":[15,11,37]}
+```
+
+Как мы видим, данные закодированы и мы даже можем их прочитать.
+Если же мы хотим получить результат, который лучше подходит именно для чтения человеком (например для использования в качестве конфигурационного файла или для отображения информации на экране компьютера, а не для передачи данных другой программе по сети), мы можем использовать родственную функцию `MarshalIndent`.
+
+`MarshalIndent` похож на `Marshal`, но применяет отступ (indent) для форматирования вывода.
+Каждый элемент JSON в выходных данных начинается с новой строки, начинающейся с префикса (prefix), за которым следует один или несколько отступов в соответствии с вложенностью:
+```go
+type myStruct struct {
+	Name   string
+	Age    int
+	Status bool
+	Values []int
+}
+
+s := myStruct{
+	Name:   "John Connor",
+	Age:    35,
+	Status: true,
+	Values: []int{15, 11, 37},
+}
+
+data, err := json.MarshalIndent(s, "", "\t")
+if err != nil {
+	fmt.Println(err)
+	return
+}
+
+fmt.Printf("%s", data)
+
+//{
+//	"Name": "John Connor",
+//	"Age": 35,
+//	"Status": true,
+//	"Values": [
+//		15,
+//		11,
+//		37
+//	]
+//}
+```
+
+Ну и в завершении этого шага рассмотрим последнюю из трех функций `Unmarshal`, она принимает в качестве аргумента байтовый срез и указатель на объект, в который требуется декодировать данные.
+Рассмотрим это на уже знакомом примере:
+```go
+data := []byte(`{"Name":"John Connor","Age":35,"Status":true,"Values":[15,11,37]}`)
+
+type myStruct struct {
+	Name   string
+	Age    int
+	Status bool
+	Values []int
+}
+
+var s myStruct
+
+if err := json.Unmarshal(data, &s); err != nil {
+	fmt.Println(err)
+	return
+}
+
+fmt.Printf("%v", s) // {John Connor 35 true [15 11 37]}
+```
+
+#### Проверка json на правильность
+Мы можем проверить является ли срез байтов форматом json:
+```go
+type user struct {
+	Name     string
+	Email    string
+	Status   bool
+	Language []byte
+}
+
+m := user{Name: "John Connor", Email: "test email"}
+
+data, _ := json.Marshal(m)
+
+data = bytes.Trim(data, "{") // испортим json удалив '{'
+
+// функция json.Valid возвращает bool, true - если json правильный
+if !json.Valid(data) {
+	fmt.Println("invalid json!") // вывод: invalid json!
+}
+
+fmt.Printf("%s", data) // вывод: "Name":"John Connor","Email":"test email","Status":false,"Language":null}
+```
+
+### Задание
+<details><summary>Раскрыть</summary>
+
+На стандартный ввод подаются данные о студентах университетской группы в формате JSON:
+```json
+{
+    "ID":134,
+    "Number":"ИЛМ-1274",
+    "Year":2,
+    "Students":[
+        {
+            "LastName":"Вещий",
+            "FirstName":"Лифон",
+            "MiddleName":"Вениаминович",
+            "Birthday":"4апреля1970года",
+            "Address":"632432,г.Тобольск,ул.Киевская,дом6,квартира23",
+            "Phone":"+7(948)709-47-24",
+            "Rating":[1,2,3]
+        },
+        {
+            // ...
+        }
+    ]
+}
+```
+
+В сведениях о каждом студенте содержится информация о полученных им оценках (Rating).
+Требуется прочитать данные, и рассчитать среднее количество оценок, полученное студентами группы.
+Ответ на задачу требуется записать на стандартный вывод в формате JSON в следующей форме:
+```json
+{
+    "Average": 14.1
+}
+```
+
+Как вы понимаете, для декодирования используется функция Unmarshal, а для кодирования MarshalIndent (префикс - пустая строка, отступ - 4 пробела).
+
+Если у вас возникли проблемы с чтением / записью данных, то этот комментарий для вас: в уроках об интерфейсах и работе с файлами мы рассказывали, что стандартный ввод / вывод - это файлы, к которым можно обратиться через os.Stdin и os.Stdout соответственно, они удовлетворяют интерфейсам io.Reader и io.Writer, из них можно читать, в них можно писать.
+
+Один из способов чтения, использовать ioutil.ReadAll:
+```go
+data, err := ioutil.ReadAll(os.Stdin)
+if err != nil {
+    // ...
+}
+
+// data - тип []byte
+```
+
+Задачу можно выполнить и другими способами, в частности использовать bufio.
+
+Ответ:
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+)
+
+type student struct {
+	LastName   string
+	FirstName  string
+	MiddleName string
+	Birthday   string
+	Address    string
+	Phone      string
+	Rating     []int
+}
+
+type group struct {
+	ID       int
+	Number   string
+	Year     int
+	Students []student
+}
+
+type groupAvg struct {
+	Average float64
+}
+
+func main() {
+	var iGroup group
+	var avgRating groupAvg
+
+	iData, err := io.ReadAll(os.Stdin)
+	if err != nil && err != io.EOF {
+		panic("Cannot read stdin!")
+	}
+
+	if err := json.Unmarshal(iData, &iGroup); err != nil {
+		panic("Cannot unmarshal json!")
+	}
+
+	for _, st := range iGroup.Students {
+		avgRating.Average += float64(len(st.Rating))
+	}
+
+	avgRating.Average = avgRating.Average / float64(len(iGroup.Students))
+
+	oData, err := json.MarshalIndent(avgRating, "", "    ")
+	if err != nil {
+		panic("Cannot marshall json!")
+	}
+
+	fmt.Printf("%s", oData)
+}
+```
+
+</details>
