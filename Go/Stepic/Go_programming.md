@@ -6564,3 +6564,186 @@ func main() {
 ```
 
 </details>
+
+### type Month
+В предыдущем шаге остался один неразрешенный момент — указания на месяц.
+Это всего лишь объявленные на уровне модуля `time` константы, которые выглядят следующим образом:
+```go
+type Month int
+
+const (
+	January Month = 1 + iota
+	February
+	March
+	April
+	May
+	June
+	July
+	August
+	September
+	October
+	November
+	December
+)
+```
+
+### type Duration
+В предыдущем шаге мы увидели такой тип как `Duration` — продолжительность.
+Рассмотрим его подробнее.
+Внутри `Duration` представляет из себя `int64`, определяющий количество наносекунд, прошедших между двумя моментами времени.
+
+Создается экземпляр типа `Duration` одной из следующих функций:
+```go
+now := time.Now()
+past := now.AddDate(0, 0, -1)
+future := now.AddDate(0, 0, 1)
+
+// func Since(t Time) Duration
+// вычисляет период между текущим моментом и заданным временем в прошлом
+fmt.Println(time.Since(past).Round(time.Second)) // 24h0m0s
+
+// func Until(t Time) Duration
+// вычисляет период между текущим моментом и заданным временем в будущем
+fmt.Println(time.Until(future).Round(time.Second)) // 24h0m0s
+
+// func ParseDuration(s string) (Duration, error)
+// преобразует строку в Duration с использованием аннотаций:
+// "ns" - наносекунды,
+// "us" - микросекунды,
+// "ms" - миллисекунды,
+// "s" - секунды,
+// "m" - минуты,
+// "h" - часы.
+dur, err := time.ParseDuration("1h12m3s")
+if err != nil {
+	panic(err)
+}
+fmt.Println(dur.Round(time.Hour).Hours()) // 1
+```
+
+Время — вещь текучая (и в общем, конечно, не вещь вовсе), поэтому не всегда нам удается получить то значение, какое мы ожидаем.
+Чтобы увидеть конкретный результат, который мы ожидали получить, мы в дополнение к рассматриваемой функции использовали метод `Round`, округляющий значение до ближайшего целого с заданной точностью.
+
+У типа Duration помимо метода `Round`, который мы рассмотрели выше, есть ряд других методов, позволяющих вернуть часть значения: часы, минуты, секунды и пр.
+```go
+func (d Duration) Hours() float64
+func (d Duration) Minutes() float64
+func (d Duration) Seconds() float64
+func (d Duration) Milliseconds() int64
+func (d Duration) Microseconds() int64
+func (d Duration) Nanoseconds() int64
+```
+
+Завершая разговор об этом типе отметим, что модуль `time` содержит ряд констант типа `Duration`:
+```go
+const (
+	Nanosecond  Duration = 1
+	Microsecond          = 1000 * Nanosecond
+	Millisecond          = 1000 * Microsecond
+	Second               = 1000 * Millisecond
+	Minute               = 60 * Second
+	Hour                 = 60 * Minute
+)
+```
+
+### Задания
+<details><summary>Раскрыть</summary>
+
+#### Задание №1
+На стандартный ввод подается строковое представление двух дат, разделенных запятой (формат данных смотрите в примере).
+
+Необходимо преобразовать полученные данные в тип `Time`, а затем вывести продолжительность периода между меньшей и большей датами.
+
+Ответ:
+```go
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+)
+
+func main() {
+	const timeFormat = "02.01.2006 15:04:05"
+
+	iByte, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	iStr := strings.TrimRight(string(iByte), "\r\n")
+	iStr = strings.TrimRight(iStr, "\n")
+	iStrSlice := strings.Split(iStr, ",")
+
+	//13.03.2018 14:00:15,12.03.2018 14:00:15
+	iTime1, err := time.Parse(timeFormat, iStrSlice[0])
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	iTime2, err := time.Parse(timeFormat, iStrSlice[1])
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	if iTime1.Unix() > iTime2.Unix() {
+		// time.Parse()
+		fmt.Println(iTime1.Sub(iTime2))
+	} else {
+		fmt.Println(iTime2.Sub(iTime1))
+	}
+}
+```
+
+#### Задание №2
+На стандартный ввод подаются данные о продолжительности периода (формат приведен в примере).
+Кроме того, вам дана дата в формате Unix-Time: 1589570165 в виде константы типа int64 (наносекунды для целей преобразования равны 0).
+
+Требуется считать данные о продолжительности периода, преобразовать их в тип Duration, а затем вывести (в формате UnixDate) дату и время, получившиеся при добавлении периода к стандартной дате.
+
+Небольшая подсказка: базовую дату необходимо явно перенести в зону UTC с помощью одноименного метода.
+
+**Sample Input:**
+
+12 мин. 13 сек.
+
+**Sample Output:**
+
+Fri May 15 19:28:18 UTC 2020
+
+Ответ:
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"time"
+)
+
+func main() {
+	const timeFormat = "02.01.2006 15:04:05"
+	const startTime = 1589570165
+	var min, sec int
+
+	fmt.Scanf("%d мин. %d сек.", &min, &sec)
+	iStr := fmt.Sprintf("0h%dm%ds", min, sec)
+
+	iDur, err := time.ParseDuration(iStr)
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+
+	iTime := time.Unix(startTime, 0).UTC()
+	iTime = iTime.Add(iDur)
+
+	fmt.Println(iTime.Format(time.UnixDate))
+}
+```
+
+</details>
+

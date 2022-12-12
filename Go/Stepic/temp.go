@@ -1,34 +1,26 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"os"
-	"strings"
 	"time"
 )
 
 func main() {
-	const timeFormat = "2006-01-02 15:04:05"
+	const timeFormat = "02.01.2006 15:04:05"
+	const startTime = 1589570165
+	var min, sec int
 
-	iByte, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	fmt.Scanf("%d мин. %d сек.", &min, &sec)
+	iStr := fmt.Sprintf("0h%dm%ds", min, sec)
+
+	iDur, err := time.ParseDuration(iStr)
 	if err != nil && err != io.EOF {
 		panic(err)
 	}
 
-	iStr := strings.TrimRight(string(iByte), "\r\n")
-	iStr = strings.TrimRight(iStr, "\n")
+	iTime := time.Unix(startTime, 0).UTC()
+	iTime = iTime.Add(iDur)
 
-	//2020-05-15 08:00:00
-	iTime, err := time.Parse(timeFormat, iStr)
-	if err != nil && err != io.EOF {
-		panic(err)
-	}
-
-	if iTime.Hour() >= 13 {
-		fmt.Println(iTime.AddDate(0, 0, 1).Format(timeFormat))
-	} else {
-		fmt.Println(iTime.Format(timeFormat))
-	}
+	fmt.Println(iTime.Format(time.UnixDate))
 }
