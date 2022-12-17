@@ -7652,4 +7652,126 @@ func calculator(arguments <-chan int, done <-chan struct{}) <-chan int {
 }
 ```
 
+#### Задание №3
+Необходимо написать функцию `func merge2Channels(fn func(int) int, in1 <-chan int, in2 <- chan int, out chan<- int, n int)`.
+
+Описание ее работы:
+
+n раз сделать следующее
+* прочитать по одному числу из каждого из двух каналов in1 и in2, назовем их x1 и x2.
+* вычислить f(x1) + f(x2)
+* записать полученное значение в out
+
+Функция merge2Channels должна быть неблокирующей, сразу возвращая управление.
+
+Функция fn может работать долгое время, ожидая чего-либо или производя вычисления.
+
+ 
+
+Формат ввода:
+* количество итераций передается через аргумент n.
+* целые числа подаются через аргументы-каналы in1 и in2.
+* функция для обработки чисел перед сложением передается через аргумент fn.
+
+Формат вывода:
+* канал для вывода результатов передается через аргумент out.
+
+Ответ:
+```go
+package main
+
+import (
+	"fmt"  // пакет используется для проверки выполнения условия задачи, не удаляйте его
+	"time" // пакет используется для проверки выполнения условия задачи, не удаляйте его
+    "sync"
+)
+
+func merge2Channels(fn func(int) int, in1 <-chan int, in2 <-chan int, out chan<- int, n int) {
+	go func(){
+        x1, x2 := make([]int, n), make([]int, n)
+		wg := new(sync.WaitGroup)
+
+		for i := 0; i < n; i++ {
+			x1[i] = <- in1
+			x2[i] = <- in2
+		}
+
+		for i := 0; i < n; i++ {
+			go func (i int, x1 []int, wg *sync.WaitGroup)  {
+				wg.Add(1)
+				x1[i] = fn(x1[i])
+				wg.Done()
+			}(i, x1, wg)
+			go func (i int, x2 []int, wg *sync.WaitGroup)  {
+				wg.Add(1)
+				x2[i] = fn(x2[i])
+				wg.Done()
+			}(i, x2, wg)
+		}
+		wg.Wait()
+
+		for i := 0; i < n; i++ {
+			out <- x1[i] + x2[i]
+		}
+	}()
+}
+```
+
 </details>
+
+### Дополнительные материалы для дальнейшего изучения параллелизма в Go
+Сложно охватить все темы связанные с многопоточностью, поэтому предлагаем вам материалы для дальнейшего изучения:
+* [Как не ошибиться с конкурентностью в Go](https://habr.com/ru/company/avito/blog/466495/)
+* [Разбираемся с новым sync.Map в Go 1.9](https://habr.com/ru/post/338718/)
+* [Конкурентность в Go на примере создания игры для изучения Марса](https://golangs.org/life-mars)
+* [Как работает планировщик Go](https://golangs.org/life-mars)
+* [GO Scheduler: теперь не кооперативный?](https://golangs.org/life-mars)
+* [Танцы с мьютексами в Go](https://golangs.org/life-mars)
+
+
+# Полезные материалы
+## В качестве продолжения обучения
+* [Разработка веб-сервисов на Go - основы языка](https://www.coursera.org/learn/golang-webservices-1/home/welcome)
+* [Алгоритмы и структуры данных - задания можно выполнять на Golang](https://stepik.org/course/1547)
+* [Разработка веб-сервисов на Golang, часть 2](https://www.coursera.org/learn/golang-webservices-2/home/welcome) 
+
+## Другое
+* [Самый полный и актуальный учебник это официальная документация](https://golang.org/pkg/) 
+* [Уроки для изучения Golang - golangs.org](https://golangs.org/)
+* [A curated list of awesome Go frameworks, libraries and software](https://awesome-go.com/)
+* [4gophers: Статьи разных уровней про Go](https://4gophers.ru/)
+* [Программирование на Go by digitalocean](https://www.digitalocean.com/community/tutorial_series/how-to-code-in-go-ru)
+* [Бенчмарки в Go](https://habr.com/en/post/268585/)
+* [Go vs Python](https://habr.com/en/post/488644/)
+* [Book The Go Programming Language](https://www.gopl.io/)
+* [Golang: основы для начинающих](https://tproger.ru/translations/golang-basics/)
+* [Список книг по Go](https://tproger.ru/books/go-books/)
+* [Go на reddit](https://www.reddit.com/r/golang/)
+* [Полезные короткие статьи](https://www.devdungeon.com/content/go) 
+* [Является ли Go языком ООП?](https://habr.com/en/post/225907/)
+* [50 оттенков Go: ловушки, подводные камни и распространённые ошибки новичков](https://habr.com/ru/company/mailru/blog/314804/#22)
+* [golang-developer-roadmap](https://github.com/Alikhll/golang-developer-roadmap)
+* [Подводные камни Go (english)](https://go-traps.appspot.com/)
+* [Большой список видеокурсов по Go](https://coursehunters.net/backend/google-go)
+* [Go на Хабре](https://habr.com/ru/search/?target_type=posts&q=[golang]&order_by=date)
+* [С чего начать новичку в Go](https://habr.com/ru/post/269355/)
+* [reference manual for the Go programming language](https://golang.org/ref/spec)
+* [Welcome to a tour of Go](https://tour.golang.org/list)
+* [Go с нуля (перевод книги)](https://rtfm.co.ua/books-translations/go-s-nulya/)
+* [Go в примерах](https://gobyexample.ru/)
+* [Golang Web Scraping](https://github.com/lorien/awesome-web-scraping/blob/master/golang.md)
+* [Разбираемся в Go: пакеты bytes и strings](https://habr.com/en/post/307554/)
+* [Введение в систему модулей Go](https://habr.com/ru/post/421411/)
+* [Зачем в Go амперсанд и звёздочка (& и *)?](https://habr.com/ru/post/339192/)
+* [Ошибки это значения](https://4gophers.ru/articles/oshibki-eto-znacheniya/)
+* [Как писать Go-пакеты](https://habr.com/ru/company/ruvds/blog/464289/)
+* [Полное руководство по массивам и срезам в Golang](https://habr.com/ru/company/otus/blog/465613/)
+* [Учебные курсы по Go (English)](https://www.tutorialspoint.com/go/index.htm)
+* [Работа с ошибками в Go 1.13](https://habr.com/ru/company/mailru/blog/473658/)
+
+## Многопоточность
+* [Как не ошибиться с конкурентностью в Go](https://habr.com/ru/company/avito/blog/466495/)
+* [Разбираемся с новым sync.Map в Go 1.9](https://habr.com/ru/post/338718/)
+* [Конкурентность в Go на примере создания игры для изучения Марса](https://golangs.org/life-mars)
+* [Как работает планировщик Go](https://habr.com/ru/post/489862/)
+* [Танцы с мьютексами в Go](https://habr.com/ru/post/271789/)

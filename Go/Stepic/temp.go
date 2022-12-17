@@ -7,18 +7,31 @@ import (
 )
 
 func merge2Channels(fn func(int) int, in1 <-chan int, in2 <-chan int, out chan<- int, n int) {
-	locker := new(sync.Mutex)
-
 	go func(){
+        x1, x2 := make([]int, n), make([]int, n)
+		wg := new(sync.WaitGroup)
+
 		for i := 0; i < n; i++ {
-			
-			// locker.Lock()
-			// x1 := <- in1
-			// x2 := <- in2
-			// locker.Unlock()
-			// go func (x1, x2, i int)  {
-			// 	out <- fn(x1) + fn(x2)
-			// }(x1, x2, i)
+			x1[i] = <- in1
+			x2[i] = <- in2
+		}
+
+		for i := 0; i < n; i++ {
+			go func (i int, x1 []int, wg *sync.WaitGroup)  {
+				wg.Add(1)
+				x1[i] = fn(x1[i])
+				wg.Done()
+			}(i, x1, wg)
+			go func (i int, x2 []int, wg *sync.WaitGroup)  {
+				wg.Add(1)
+				x2[i] = fn(x2[i])
+				wg.Done()
+			}(i, x2, wg)
+		}
+		wg.Wait()
+
+		for i := 0; i < n; i++ {
+			out <- x1[i] + x2[i]
 		}
 	}()
 }
