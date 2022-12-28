@@ -142,11 +142,11 @@ stress-ng при запуске "тестов по умолчанию" выпо�
 Для контроля работы оборудования в режиме реального времени, при запуске стресс-теста, можно использовать набор консольных утилит sysstat (измерение и анализ производительности системы).
 
 О возможностях stress-ng можно почитать по ссылкам:
-[Stress-ng. Утилита нагрузочного тестирования аппаратного обеспечения](https://redos.red-soft.ru/base/manual/redos-manual/utilites/hardware-stress-test/stress-ng/)
-[Стресс-тестирование систем в Linux. Утилита stress-ng](https://itproffi.ru/stress-testirovanie-sistem-v-linux-utilita-stress-ng/)
-[Стресс-тестирование серверов с помощью stress-ng](https://highload.today/stress-testirovanie-serverov-s-pomoschyu-stress-ng/)
-[stress-ng. Инструмент для стресс-тестов](https://highload.today/stress-testirovanie-serverov-s-pomoschyu-stress-ng/)
-[Подробный мануал по stress-ng](https://manned.org/man/debian-bullseye/stress-ng.1)
+1. [Stress-ng. Утилита нагрузочного тестирования аппаратного обеспечения](https://redos.red-soft.ru/base/manual/redos-manual/utilites/hardware-stress-test/stress-ng/)
+2. [Стресс-тестирование систем в Linux. Утилита stress-ng](https://itproffi.ru/stress-testirovanie-sistem-v-linux-utilita-stress-ng/)
+3. [Стресс-тестирование серверов с помощью stress-ng](https://highload.today/stress-testirovanie-serverov-s-pomoschyu-stress-ng/)
+4. [stress-ng. Инструмент для стресс-тестов](https://highload.today/stress-testirovanie-serverov-s-pomoschyu-stress-ng/)
+5. [Подробный мануал по stress-ng](https://manned.org/man/debian-bullseye/stress-ng.1)
 
 ## Тестирование процессора
 
